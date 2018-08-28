@@ -1,3 +1,5 @@
+import os, sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '../'))
 from src.QueryWrapper import QueryWrapper
 from src.Question import Question
 
@@ -10,5 +12,3 @@ question = Question(ont, xml)
 query_wrapper = QueryWrapper(endpoint, map_xml)
 
 print(query_wrapper.ask(question))
-
-
