@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+<query id="AIDA_M09_TA2_Q2">
+    <graph>
+        <edges>
+            <edge id="AIDA_M09_TA2_Q2_1">
+                <subject> ?attack </subject>
+                <predicate> Conflict.Attack_Target </predicate>
+                <object> ?target </object>
+            </edge>
+            <edge id="AIDA_M09_TA2_Q2_2">
+                <subject> ?attack </subject>
+                <predicate> Conflict.Attack_Place </predicate>
+                <object> ?place </object>
+            </edge>
+        </edges>
+    </graph>
+    <entrypoints>
+        <text_entrypoint>
+            <node> ?target </node>
+            <doceid> IC001JQU8 </doceid>
+            <start> 336 </start>
+            <end> 352 </end>
+            <enttype> Organization </enttype>
+        </text_entrypoint>
+        <text_entrypoint>
+            <node> ?target </node>
+            <doceid> IC001P3RL </doceid>
+            <start> 665 </start>
+            <end> 677 </end>
+            <enttype> Organization </enttype>
+        </text_entrypoint>
+        <string_entrypoint>
+            <node> ?place </node>
+            <name_string> Ukrainian </name_string>
+            <enttype> GeopoliticalEntity </enttype>
+        </string_entrypoint>
+        <text_entrypoint>
+            <node> ?place </node>
+            <doceid> IC001JQU8 </doceid>
+            <end> 1627 </end>
+            <enttype> GeopoliticalEntity </enttype>
+        </text_entrypoint>
+    </entrypoints>
+</query>

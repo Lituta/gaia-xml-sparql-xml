@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<query id="AIDA_M09_TA2_Q1">
+    <graph>
+        <edges>
+            <edge id="AIDA_M09_TA2_Q1_1">
+                <subject> ?person </subject>
+                <predicate> General-Affiliation.Person-MORE </predicate>
+                <object> ?place </object>
+            </edge>
+        </edges>
+    </graph>
+    <entrypoints>
+        <string_entrypoint>
+            <node> ?place </node>
+            <name_string> Saudi </name_string>
+            <enttype> GeopoliticalEntity </enttype>
+        </string_entrypoint>
+        <text_entrypoint>
+            <node> ?place </node>
+            <doceid> HC00017D5 </doceid>
+            <end> 5 </end>
+            <enttype> GeopoliticalEntity </enttype>
+        </text_entrypoint>
+        <video_entrypoint>
+            <node> ?place </node>
+            <doceid> IC0019NAK </doceid>
+            <keyframeid> IC0019NAK_101 </keyframeid>
+            <topleft> 20,20 </topleft>
+            <bottomright> 50,50 </bottomright>
+            <enttype> GeopoliticalEntity </enttype>
+        </video_entrypoint>
+    </entrypoints>
+</query>
