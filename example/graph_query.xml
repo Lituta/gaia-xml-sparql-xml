@@ -1,0 +1,83 @@
+<?xml version="1.0"?>
+<graph_queries>
+	<graph_query id="AIDA_M09_TA2_Q2">
+		<graph>
+			<edges>
+				<edge id="AIDA_M09_TA2_Q2_1">
+					<subject> ?crash_event </subject>
+					<predicate> Conflict.Attack_Target </predicate>
+					<object> ?crash_target</object>
+				</edge>
+				<edge id="AIDA_M09_TA2_Q2_2">
+					<subject> ?crash_event </subject>
+					<predicate> Conflict.Attack_Place </predicate>
+					<object> ?crash_place </object>
+				</edge>
+				<edge id="AIDA_M09_TA2_Q2_3">
+					<subject> ?crash_event </subject>
+					<predicate> Conflict.Attack_Attacker </predicate>
+					<object> ?crash_attacker1 </object>
+				</edge>
+				<edge id="AIDA_M09_TA2_Q2_4">
+					<subject> ?crash_event </subject>
+					<predicate> Conflict.Attack_Attacker </predicate>
+					<object> ?crash_target_destination </object>
+				</edge>
+				<edge id="AIDA_M09_TA2_Q2_5">
+					<subject> ?crash_event </subject>
+					<predicate> Conflict.Attack_Instrument </predicate>
+					<object> ?crash_instrument </object>
+				</edge>
+				<edge id="AIDA_M09_TA2_Q2_6">
+					<subject> ?transport_artifact_event </subject>
+					<predicate> Movement.TransportArtifact_Instrument </predicate>
+					<object> ?crash_target </object>
+				</edge>
+				<edge id="AIDA_M09_TA2_Q2_7">
+					<subject> ?transport_artifact_event </subject>
+					<predicate> Movement.TransportArtifact_Origin </predicate>
+					<object> ?crash_place </object>
+				</edge>
+				<edge id="AIDA_M09_TA2_Q2_8">
+					<subject> ?transport_artifact_event </subject>
+					<predicate> Movement.TransportArtifact_Destination </predicate>
+					<object> ?crash_target_destination </object>
+				</edge>
+			</edges>
+		</graph>
+		<entrypoints>
+			<entrypoint>
+				<node> ?crash_target </node>
+				<enttype> Vehicle </enttype>
+				<string_descriptor>
+					<name_string> MH-17 </name_string>
+				</string_descriptor>
+				<image_descriptor>
+					<doceid> IC0011TFO </doceid>
+					<topleft> 20,20 </topleft>
+					<bottomright> 50,50 </bottomright>
+				</image_descriptor>
+	<!--
+				<audio_descriptor>
+					<doceid> IC0011TFO </doceid>
+					<segmentid> IC0011TFO_055 </segmentid>
+					<start> 20,20 </start>
+					<end> 50,50 </end>
+				</audio_descriptor>
+	-->
+			</entrypoint>
+			<entrypoint>
+				<node> ?crash_place </node>
+				<enttype> GeopoliticalEntity </enttype>
+				<video_descriptor>
+					<doceid> IC0019NAK </doceid>
+					<keyframeid> IC0019NAK_101 </keyframeid>
+					<topleft> 20,20 </topleft>
+					<bottomright> 50,50 </bottomright>
+				</video_descriptor>			
+			</entrypoint>
+		</entrypoints>
+	</graph_query>
+</graph_queries>
+
+

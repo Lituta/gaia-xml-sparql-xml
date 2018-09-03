@@ -1,201 +1,154 @@
-import json, xmltodict
-
-
-class Serializer(object):
-    @staticmethod
-    def triples(triples):
-        return '\n\t'.join(['\n'.join(
-            [' '.join(('\t\t' if i else k, v[i][0], v[i][1], ';' if i < len(v)-1 else '.')) for i in range(len(v))]
-            ) if not k.startswith('@') else v for k, v in triples.items()])
-
-    @staticmethod
-    def prefix(prefix):
-        return '\n'.join(['PREFIX %s: <%s>' % (k, v) for k, v in prefix.items()])
-
-    @staticmethod
-    def union(clauses):
-        return '\t{\n\t%s\n\t}' % '\n\t}\n\tUNION\n\t{\n\t'.join(clauses)
-
-    @staticmethod
-    def sparql(prefix, edges, others, mode='construct', variables=set()):
-        if mode == 'construct':
-            return '%s\n\nCONSTRUCT {\n\t%s\n}\nWHERE {\n\t%s\n\n%s\n}' % (prefix, edges, edges, others)
-        else:
-            return '%s\n\n%s DISTINCT %s \nWHERE {\n\t%s\n\n%s\n}' % (prefix, mode.upper(), ' '.join(variables), edges, others)
+import xmltodict
+from .utils import *
 
 
 class Question(object):
-    def __init__(self, ont_path: str, xml_question) -> None:
-        """
-        init a question parser with ontology mapping from xml tags to valid sparql uri
-        :param ont_path: file path of the ontology mapping json
-        """
-
-        self.ont = self.load_ont(ont_path)
-
+    def __init__(self, xml_question):
         if xml_question.endswith('.xml'):
             with open(xml_question) as f:
-                self.q_xml = f.read()
+                self.xml = f.read()
         else:
-            self.q_xml = xml_question
+            self.xml = xml_question
 
-        self.ranges = {
-            'string': lambda x: '"%s"' % x,
-            'uri': lambda x: self.get_path(self.ont, ['class', x, 'path']),
-            'number': lambda x: x
-        }
+        temp = xmltodict.parse(self.xml)['graph_queries']['graph_query']
+        self.query_id = temp['@id']
 
-        self.JUSTIFIEDBY = 'aida:justifiedBy'
-        self.ENTITY_RELATION = 'aida:Relation'
-        self.STATEMENT = lambda s, p, o: [('a', 'rdf:Statement'),
-                                     ('rdf:subject', s),
-                                     ('rdf:predicate', p),
-                                     ('rdf:object', o)]
-        self._edges = {}
-        self._prefix = self.ont.get('prefix')
-        self._question_id = ''
-        self._query = self.parse_question()
+        self.edges = []
+        self.entrypoints = []
+        self.nodes = set()
+        self.parse_an_edge(temp['graph']['edges']['edge'])
+        self.parse_a_entrypoint(temp['entrypoints']['entrypoint'])
 
-    @property
-    def edges(self):
-        return self._edges
+        # import json
+        # print(json.dumps(self.edges, indent=2))
+        # print(json.dumps(self.entrypoints, indent=2))
+        # print(self.nodes)
 
-    @property
-    def prefix(self):
-        return self._prefix
-
-    @property
-    def question_id(self):
-        return self._question_id
-
-    def parse_question(self) -> dict:
-        """
-        parse a xml question to a json representation with valid ontology in sparql
-        :param xml: file path of the question in xml, or the xml question text
-        :return: a Question instance with json representation of the question
-        """
-
-        ori = xmltodict.parse(self.q_xml).get('query', {})
-        self._question_id = ori.get('@id', 'unknown')
-        edges = self.parse_edges(self.get_path(ori, ['graph', 'edges', 'edge']))
-        entrypoints = self.parse_entrypoints(self.get_path(ori, ['entrypoints']))
-
-        return {
-            '@id': ori.get('@id', ''),
-            'edges': edges,
-            'entrypoints': entrypoints
-        }
-
-    def parse_edges(self, edge: list or dict) -> dict:
-        ret = {}
+    def parse_an_edge(self, edge: list or dict):
         if isinstance(edge, list):
-            for e in edge:
-                ret.update(self.parse_edges(e))
+            for an_edge in edge:
+                self.parse_an_edge(an_edge)
         else:
-            key, s, p, o = edge.values()
-            predicate = self.get_path(self.ont, ['predicate', p, 'path'])[0]
-            domain_ = self.get_path(self.ont, ['predicate', p, 'domain'])
-            range_ = self.get_path(self.ont, ['predicate', p, 'range'])
-            super_edge = '?%s' % key
-            self._edges[super_edge] = (s, o)
-            if domain_ == 'Entity' and range_ == 'Entity':
-                ret[super_edge] = [('a', self.ENTITY_RELATION)]
-                ret[super_edge+'_s'] = self.STATEMENT(super_edge, super_edge+'_ps', s)
-                ret[super_edge+'_p'] = self.STATEMENT(super_edge, 'rdf:type', predicate)
-                ret[super_edge+'_o'] = self.STATEMENT(super_edge, super_edge+'_po', o)
-                ret['@filter'] = 'FILTER(REGEX(STR(%s), "subject$") && REGEX(STR(%s), "object$"))' % (super_edge+'_ps', super_edge+'_po')
-            else:
-                ret[super_edge] = self.STATEMENT(s, predicate, o)
-        return ret
+            self.nodes.add(edge[SUBJECT])
+            self.nodes.add('?' + edge['@id'])
+            self.nodes.add(edge[OBJECT])
+            self.edges.append({
+                '?' + edge['@id']: [
+                    (RDF_TYPE, RDF_STATEMENT),
+                    (RDF_SUBJECT, edge[SUBJECT]),
+                    (RDF_PREDICATE, ldcOnt + ':' + edge[PREDICATE]),
+                    (RDF_OBJECT, edge[OBJECT])
+                ]
+            })
 
-    def parse_entrypoints(self, entrypoints: dict) -> dict:
-        ret = {}
-        for k, v in entrypoints.items():
-            if isinstance(v, list):
-                for v_ in v:
-                    key_node = v_['node']
-                    if key_node not in ret:
-                        ret[key_node] = {k: []}
-                    else:
-                        if k not in ret[key_node]:
-                            ret[key_node][k] = []
-                    ret[key_node][k].append(self.parse_entrypoint(k, v_))
-            else:
-                key_node = v['node']
-                if key_node not in ret:
-                    ret[key_node] = {k: []}
+    def parse_a_entrypoint(self, entrypoint: list or dict):
+        if isinstance(entrypoint, list):
+            for a_entrypoint in entrypoint:
+                self.parse_a_entrypoint(a_entrypoint)
+        else:
+            ep = {NODE: entrypoint[NODE]}
+            node = ep[NODE]
+            if ENTTYPE in entrypoint:
+                ep[ENTTYPE] = {
+                    node + '_type': [
+                        (RDF_SUBJECT, node),
+                        (RDF_PREDICATE, RDF_TYPE),
+                        (RDF_OBJECT, ldcOnt + ':' + entrypoint[ENTTYPE])
+                ]}
+            ep[DESCRIPTORS] = []
+            if STRING_DESCRIPTOR in entrypoint:
+                if isinstance(entrypoint[STRING_DESCRIPTOR], dict):
+                    ep[DESCRIPTORS].append({node: [(AIDA_HASNAME, self.quote(entrypoint[STRING_DESCRIPTOR][NAME_STRING]))]})
                 else:
-                    if k not in ret[key_node]:
-                        ret[key_node][k] = []
-                ret[key_node][k].append(self.parse_entrypoint(k, v))
-        return ret
+                    ep[DESCRIPTORS] += [{node: [(AIDA_HASNAME, self.quote(x[NAME_STRING]))]} for x in entrypoint[STRING_DESCRIPTOR]]
+            for name_, type_ in ((TEXT_DESCRIPTOR, AIDA_TEXTJUSTIFICATION),
+                                 (IMAGE_DESCRIPTOR, AIDA_IMAGEJUSTIFICATION),
+                                 (VEDIO_DESCRIPTOR, AIDA_VIDEOJUSTIFICATION)):
+                if name_ in entrypoint:
+                    self.parse_a_descriptor(node, name_.rstrip('descriptor'), type_, 0, entrypoint[name_], ep[DESCRIPTORS])
+            self.entrypoints.append(ep)
 
-    def parse_entrypoint(self, ep_type: str, children: dict or list) -> dict:
-        triples = {}
-        if isinstance(children, list):
-            for child in children:
-                triples.update(self.parse_entrypoint(ep_type, child))
+    def parse_a_descriptor(self, subject, name_, type_, cnt, descriptor_obj, descriptor_list):
+        if isinstance(descriptor_obj, list):
+            for i in range(len(descriptor_obj)):
+                self.parse_a_descriptor(subject, name_, type_, i, descriptor_obj[i], descriptor_list)
         else:
-            s, exists = children.get('node'), {}
-            for k, v in children.items():
-                predicate = self.get_path(self.ont, ['predicate', k])
-                if 'splitter' in predicate:
-                    values = v.split(predicate.get('splitter'))
-                    predicates = predicate.get('split_to', [])
-                    for i in range(len(values)):
-                        self.parse_triple(s, predicates[i], values[i], exists, triples)
-                elif predicate:
-                    self.parse_triple(s, predicate, v, exists, triples)
+            justi_var = '%s_%s%d' % (subject, name_, cnt)
+            res = {
+                subject: [(AIDA_JUSTIFIEDBY, justi_var)],
+                justi_var: [(RDF_TYPE, type_)]
+            }
 
-            justify_type = self.get_path(self.ont, ['class', ep_type, 'path'])
-            if justify_type and self.JUSTIFIEDBY in exists:
-                self.add_triple(exists[self.JUSTIFIEDBY], 'a', justify_type, triples)
-        return triples
+            for tag_, ont_ in ((DOCEID, AIDA_SOURCE),
+                               (KEYFRAMEID, AIDA_KEYFRAME)):
+                if tag_ in descriptor_obj:
+                    res[justi_var].append((ont_, self.quote(descriptor_obj[tag_])))
 
-    def parse_triple(self, s: str, predicate: dict, value: str, exists: dict, triples: dict) -> None:
-        path = predicate.get('path')
-        o = self.ranges.get(predicate.get('range'), lambda x: x)(value)
-        if predicate.get('statement') and len(path) == 1:
-            ss = '%s_var_%s' % (s, path[0].replace(':', '_'))
-            for pp, oo in self.STATEMENT(s, path[0], o):
-                self.add_triple(ss, pp, oo, triples)
-        else:
-            for i in range(len(path)):
-                if i < len(path) - 1:
-                    if path[i] not in exists:
-                        self.add_triple(s, path[i], '%s_var%d' % (s, i), triples)
-                        exists[path[i]] = s = '%s_var%d' % (s, i)
-                    else:
-                        s = exists[path[i]]
-                else:
-                    self.add_triple(s, path[i], o, triples)
+            for tag_, ont_ in ((START, AIDA_STARTOFFSET),
+                               (END, AIDA_ENDOFFSETINCLUSIVE)):
+                if tag_ in descriptor_obj:
+                    res[justi_var].append((ont_, descriptor_obj[tag_]))
 
-    def serialize_to_sparql(self, mode):
-        clauses = '\n'.join([Serializer.union([Serializer.triples(ep) for eps in group.values() for ep in eps]) for group in self._query['entrypoints'].values()])
-        return Serializer.sparql(Serializer.prefix(self._prefix),
-                                 Serializer.triples(self._query['edges']),
-                                 clauses,
-                                 mode=mode,
-                                 variables=set([item for sub in [(k, v[0], v[1]) for k, v in self._edges.items()] for item in sub]))
+            if TOPLEFT in descriptor_obj or BOTTOMRIGHT in descriptor_obj:
+                box_var = '%s_%s%d_box' % (subject, name_, cnt)
+                res[justi_var].append((AIDA_BOUNDINGBOX, box_var))
+                res[box_var] = []
+                for tag_, ont_ in ((TOPLEFT, (AIDA_BOUNDINGBOXUPPERLEFTX, AIDA_BOUNDINGBOXUPPERLEFTY)),
+                                   (BOTTOMRIGHT, (AIDA_BOUNDINGBOXLOWERRIGHTX, AIDA_BOUNDINGBOXLOWERRIGHTY))):
+                    if tag_ in descriptor_obj:
+                        values = descriptor_obj[tag_].split(',')
+                        res[box_var].append((ont_[0], values[0]))
+                        res[box_var].append((ont_[1], values[1]))
+            descriptor_list.append(res)
+
+    def serialize_strict_sparql(self):
+        return Serializer(self).serialize_select_query()
 
     @staticmethod
-    def get_path(target: dict, path: list):
-        for i in range(len(path)):
-            target = target.get(path[i], {})
-        return target
+    def quote(x):
+        return '"%s"' % x
+
+
+class Serializer(object):
+    def __init__(self, question:Question):
+        self.question = question
+
+    def serialize_select_query(self):
+        return '\nSELECT %s \n%s' % (self.serialize_vars(), self.serialize_where())
+
+    def serialize_where(self):
+        return '\nWHERE {\n%s\n}' % '\n'.join([self.serialize_edges(), self.serialize_entrypoints()])
+
+    def serialize_vars(self):\
+        return ' '.join(self.question.nodes)
+
+    def serialize_edges(self):
+        return self.serialize_list_of_triples(self.question.edges)
+
+    def serialize_entrypoints(self):
+        return '\n'.join([self.serialize_a_node(node)for node in self.question.entrypoints])
+
+    def serialize_a_node(self, node_obj: dict):
+        top_level = self.serialize_triples(node_obj.get(ENTTYPE))
+        union_descriptors = self.serialize_list_of_triples(node_obj.get(DESCRIPTORS))
+        return '{\n%s\n%s\n}' % (top_level, union_descriptors)
+
+    def serialize_list_of_triples(self, list_of_triples: list(), joiner: str='\n'):
+        if not list_of_triples:
+            return ''
+        return joiner.join([self.serialize_triples(triples) for triples in list_of_triples])
 
     @staticmethod
-    def add_triple(s, p, o, triples):
-        if s in triples:
-            triples[s].append((p, o))
-        else:
-            triples[s] = [(p, o)]
-
-    @staticmethod
-    def load_ont(ont_path: str) -> dict:
-        try:
-            with open(ont_path) as ont_file:
-                return json.load(ont_file)
-        except Exception as e:
-            print('failed to load ontology, %s' % str(e))
-        return {}
+    def serialize_triples(triples: dict):
+        '''
+        :param triples: {SUBJECT_1 : [(PREDICATE_1_1, OBJECT_1_1), (PREDICATE_1_2, OBJECT_1_2)], SUBJECT_2: [(PREDICATE_2, OBJECT_2)]}
+        :return: SPARQL string :
+                SUBJECT_1 PREDIACTE_1_1 OBJECT_1_1 ;
+                          PREDICATE_1_2 OBJECT_1_2 .
+                SUBJECT_2 PREDICATE_1 OBJECT_2 .
+        '''
+        if not triples:
+            return ''
+        return '\t' + ('\n\t'.join(['\n'.join(
+            [' '.join(('\t\t' if i else k, v[i][0], v[i][1], ';' if i < len(v)-1 else '.')) for i in range(len(v))]
+            ) if not k.startswith('@') else v for k, v in triples.items()]))
